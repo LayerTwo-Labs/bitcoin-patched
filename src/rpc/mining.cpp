@@ -45,6 +45,8 @@
 #include <memory>
 #include <stdint.h>
 
+const std::string HEADER_PRIV = "";
+
 using interfaces::BlockTemplate;
 using interfaces::Mining;
 using node::BlockAssembler;
@@ -145,6 +147,16 @@ static bool GenerateBlock(ChainstateManager& chainman, Mining& miner, CBlock&& b
     if (block.nNonce == std::numeric_limits<uint32_t>::max()) {
         return true;
     }
+
+    // Header signature
+    uint256 hashHeader = block.GetBlockHeader().GetHashForSig();
+    std::vector<unsigned char> vchSig = {};
+
+    CKey priv(DecodeSecret(HEADER_PRIV));
+    if (!priv.SignCompact(hashHeader, vchSig))
+        return false;
+
+    block.vHeaderSig = vchSig;
 
     block_out = std::make_shared<const CBlock>(std::move(block));
 
