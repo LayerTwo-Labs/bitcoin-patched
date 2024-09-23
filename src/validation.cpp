@@ -8,6 +8,7 @@
 #include <validation.h>
 
 #include <arith_uint256.h>
+#include <base58.h>
 #include <chain.h>
 #include <checkqueue.h>
 #include <clientversion.h>
@@ -28,6 +29,7 @@
 #include <kernel/messagestartchars.h>
 #include <kernel/notifications_interface.h>
 #include <kernel/warning.h>
+#include <key_io.h>
 #include <logging.h>
 #include <logging/timer.h>
 #include <node/blockstorage.h>
@@ -3906,11 +3908,42 @@ void ChainstateManager::ReceivedBlockTransactions(const CBlock& block, CBlockInd
     }
 }
 
+bool VerifyHeaderSig(const CBlockHeader& header)
+{
+    if (header.vHeaderSig.size() != 65) {
+        LogPrintf("%s: Invalid signature size!\n", __func__);
+        return false;
+    }
+    uint256 hash = header.GetHashForSig();
+    CPubKey pubkey;
+    if (!pubkey.RecoverCompact(hash, header.vHeaderSig)) {
+        LogPrintf("%s: Failed to recover pubkey!\n", __func__);
+        return false;
+    }
+
+    if (DecodeDestination("145Ci4nDFymr3oXRsE5KCmeUdd6VuUxEB4") != CTxDestination(PKHash(pubkey.GetID()))) {
+        LogPrintf("%s: Address does not match signature!\n", __func__);
+        return false;
+    }
+
+    return true;
+}
+
 static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
     // Check proof of work matches claimed amount
     if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "high-hash", "proof of work failed");
+
+    // Check header signature
+    if (fCheckPOW && block.GetHash() != Params().GetConsensus().hashGenesisBlock) {
+        if (!VerifyHeaderSig(block)) {
+            return state.Invalid(
+                    /*result=*/BlockValidationResult::BLOCK_INVALID_HEADER,
+                    /*reject_reason=*/"header-signature",
+                    /*debug_message=*/strprintf("%s : invalid header signature", __func__));
+        }
+    }
 
     return true;
 }
