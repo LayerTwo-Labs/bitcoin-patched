@@ -1,3 +1,6 @@
+> This is a forked version of `bitcoin/bitcoin`. It branches off of v29.2 and 
+> applies a series of Drivechain-related patches. 
+
 Bitcoin Core integration/staging tree
 =====================================
 
