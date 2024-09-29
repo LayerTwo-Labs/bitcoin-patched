@@ -103,10 +103,13 @@ def new_block(tmpl, reward_spk, *, blocktime=None, poolid=None):
         scriptSig = CScript(b"" + scriptSig + CScriptOp.encode_op_pushdata(poolid))
 
     cbtx = CTransaction()
-    cbtx.nLockTime = tmpl["height"] - 1
-    cbtx.vin = [CTxIn(COutPoint(0, 0xffffffff), scriptSig, MAX_SEQUENCE_NONFINAL)]
-    cbtx.vout = [CTxOut(tmpl["coinbasevalue"], reward_spk)]
-    cbtx.vin[0].nSequence = 2**32-2
+    if "coinbasetxn" in tmpl:
+        cbtx = tx_from_hex(tmpl["coinbasetxn"]["data"])
+    else:
+        cbtx.nLockTime = tmpl["height"] - 1
+        cbtx.vin = [CTxIn(COutPoint(0, 0xffffffff), scriptSig, MAX_SEQUENCE_NONFINAL)]
+        cbtx.vout = [CTxOut(tmpl["coinbasevalue"], reward_spk)]
+        cbtx.vin[0].nSequence = 2**32-2
 
     block = CBlock()
     block.nVersion = tmpl["version"]
@@ -150,7 +153,13 @@ def get_poolid(args):
     else:
         return None
 
-def get_reward_addr_spk(args, height):
+def get_reward_addr_spk(args, tmpl):
+    # If we have a coinbase transaction, there's no need to mess around
+    # with addresses or descriptors.
+    if "coinbasetxn" in tmpl:
+        return None, None
+
+    height = tmpl["height"]
     assert args.address is not None or args.descriptor is not None
 
     if hasattr(args, "reward_spk"):
@@ -181,7 +190,7 @@ def do_genpsbt(args):
     poolid = get_poolid(args)
     tmpl = json.load(sys.stdin)
     signet_spk = tmpl["signet_challenge"]
-    _, reward_spk = get_reward_addr_spk(args, tmpl["height"])
+    _, reward_spk = get_reward_addr_spk(args, tmpl)
     block = new_block(tmpl, reward_spk, poolid=poolid)
     psbt = generate_psbt(block, signet_spk)
     print(psbt)
@@ -248,12 +257,14 @@ def trivial_challenge(spkhex):
     return False
 
 class Generate:
-    INTERVAL = 600.0*2016/2015 # 10 minutes, adjusted for the off-by-one bug
 
 
     def __init__(self, multiminer=None, ultimate_target=None, poisson=False, max_interval=1800,
                  standby_delay=0, backup_delay=0, set_block_time=None,
-                 poolid=None):
+                 # 10 minutes, adjusted for the off-by-one bug
+                 block_interval=600.0*2016/2015,
+                 poolid=None,
+                 enable_coinbasetxn = False):
         if multiminer is None:
             multiminer = (0, 1, 1)
         (self.multi_low, self.multi_high, self.multi_period) = multiminer
@@ -264,6 +275,8 @@ class Generate:
         self.backup_delay = backup_delay
         self.set_block_time = set_block_time
         self.poolid = poolid
+        self.block_interval = block_interval
+        self.enable_coinbasetxn = enable_coinbasetxn
 
     def next_block_delta(self, last_nbits, last_hash):
         # strategy:
@@ -277,7 +290,7 @@ class Generate:
         retarget_factor = self.ultimate_target / current_target
         retarget_factor = max(0.25, min(retarget_factor, 4.0))
 
-        avg_interval = self.INTERVAL * retarget_factor
+        avg_interval = self.block_interval * retarget_factor
 
         if self.poisson:
             det_rand = int(last_hash[-8:], 16) * 2**-32
@@ -301,7 +314,7 @@ class Generate:
             self.action_time = now
             self.is_mine = True
         elif bestheader["height"] == 0:
-            time_delta = self.INTERVAL * 100 # plenty of time to mine 100 blocks
+            time_delta = self.block_interval * 100 # plenty of time to mine 100 blocks
             logging.info("Backdating time for first block to %d minutes ago" % (time_delta/60))
             self.mine_time = now - time_delta
             self.action_time = now
@@ -330,8 +343,11 @@ class Generate:
         # can't mine a block 2h in the future; 1h55m for some safety
         self.action_time = max(self.action_time, self.mine_time - 6900)
 
-    def gbt(self, bcli, bestblockhash, now):
-        tmpl = json.loads(bcli("getblocktemplate", '{"rules":["signet","segwit"]}'))
+    def gbt(self, getblocktemplate_command, bestblockhash, now):
+        gbt_request = json.loads('{"rules":["signet","segwit"]}')
+        if self.enable_coinbasetxn:
+            gbt_request["capabilities"] = ["coinbasetxn"]
+        tmpl = json.loads(getblocktemplate_command(json.dumps(gbt_request)))
         if tmpl["previousblockhash"] != bestblockhash:
             logging.warning("GBT based off unexpected block (%s not %s), retrying", tmpl["previousblockhash"], bestblockhash)
             time.sleep(1)
@@ -365,6 +381,14 @@ class Generate:
 
         return finish_block(block, signet_solution, grind_cmd)
 
+def gbt_command(basecmd, request, **kwargs):
+    cmd = basecmd + [request]
+    logging.debug("Requesting block template: %r", cmd)
+    out = subprocess.run(cmd, stdout=subprocess.PIPE, **kwargs, check=True).stdout
+    if isinstance(out, bytes):
+        out = out.decode('utf8')
+    return out.strip()
+
 def do_generate(args):
     if args.set_block_time is not None:
         max_blocks = 1
@@ -377,6 +401,9 @@ def do_generate(args):
         max_blocks = None
     else:
         max_blocks = 1
+
+    if args.block_interval is not None:
+        logging.info("Using block interval %s", seconds_to_hms(args.block_interval))
 
     if args.set_block_time is not None and args.set_block_time < 0:
         args.set_block_time = time.time()
@@ -419,7 +446,8 @@ def do_generate(args):
     ultimate_target = nbits_to_target(int(args.nbits,16))
 
     gen = Generate(multiminer=my_blocks, ultimate_target=ultimate_target, poisson=args.poisson, max_interval=args.max_interval,
-                   standby_delay=args.standby_delay, backup_delay=args.backup_delay, set_block_time=args.set_block_time, poolid=poolid)
+                   standby_delay=args.standby_delay, backup_delay=args.backup_delay, set_block_time=args.set_block_time, poolid=poolid,
+                   block_interval=args.block_interval, enable_coinbasetxn=args.coinbasetxn)
 
     mined_blocks = 0
     bestheader = {"hash": None}
@@ -459,14 +487,17 @@ def do_generate(args):
             continue
 
         # gbt
-        tmpl = gen.gbt(args.bcli, bci["bestblockhash"], now)
+        getblocktemplate_command = lambda gbt_request: args.bcli("getblocktemplate", gbt_request)
+        if args.getblocktemplate_command is not None:
+            getblocktemplate_command = lambda gbt_request: gbt_command(shlex.split(args.getblocktemplate_command), gbt_request)
+        tmpl = gen.gbt(getblocktemplate_command, bci["bestblockhash"], now)
         if tmpl is None:
             continue
 
         logging.debug("GBT template: %s", tmpl)
 
         # address for reward
-        reward_addr, reward_spk = get_reward_addr_spk(args, tmpl["height"])
+        reward_addr, reward_spk = get_reward_addr_spk(args, tmpl)
 
         # mine block
         logging.debug("Mining block delta=%s start=%s mine=%s", seconds_to_hms(gen.mine_time-bestheader["time"]), gen.mine_time, gen.is_mine)
@@ -485,8 +516,12 @@ def do_generate(args):
         next_delta += block.nTime - time.time()
         next_is_mine = gen.next_block_is_mine(block.hash_hex)
 
-        logging.debug("Block hash %s payout to %s", block.hash_hex, reward_addr)
-        logging.info("Mined %s at height %d; next in %s (%s)", bstr, tmpl["height"], seconds_to_hms(next_delta), ("mine" if next_is_mine else "backup"))
+        # We used to log the payout address here. Due to moving to getting the coinbase
+        # transaction via `getblocktemplate`, we would now need to inspect the block
+        # to find the actual payout address. Don't bother!
+        logging.info("Mined %s at height %d (%s); next in %s (%s)",
+                     bstr, tmpl["height"], block.hash_hex,
+                     seconds_to_hms(next_delta), ("mine" if next_is_mine else "backup"))
         if r != "":
             logging.warning("submitblock returned %s for height %d hash %s", r, tmpl["height"], block.hash_hex)
         lastheader = block.hash_hex
@@ -562,6 +597,9 @@ def main():
     generate.add_argument("--backup-delay", default=300, type=int, help="Seconds to delay before mining blocks reserved for other miners (default=300)")
     generate.add_argument("--standby-delay", default=0, type=int, help="Seconds to delay before mining blocks (default=0)")
     generate.add_argument("--max-interval", default=1800, type=int, help="Maximum interblock interval (seconds)")
+    generate.add_argument("--block-interval", default=60*10, type=int, help="Consensus blocktime interval (seconds)")
+    generate.add_argument("--getblocktemplate-command", default=None, type=str, help="Command to get block template")
+    generate.add_argument("--coinbasetxn", action="store_true", help="Enable coinbasetxn capability for getblocktemplate")
 
     calibrate = cmds.add_parser("calibrate", help="Calibrate difficulty")
     calibrate.set_defaults(fn=do_calibrate)
@@ -570,7 +608,7 @@ def main():
     calibrate_by.add_argument("--seconds", type=int, default=None)
 
     for sp in [genpsbt, generate]:
-        payto = sp.add_mutually_exclusive_group(required=True)
+        payto = sp.add_mutually_exclusive_group()
         payto.add_argument("--address", default=None, type=str, help="Address for block reward payment")
         payto.add_argument("--descriptor", default=None, type=str, help="Descriptor for block reward payment")
         pool = sp.add_mutually_exclusive_group()
