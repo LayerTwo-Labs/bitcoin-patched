@@ -46,12 +46,7 @@ jobs:
       - name: 'Set environment variables: version number'
         run: |
           BITCOIN_PATCHED_VERSION=$(grep -oP "(?<=^CMAKE_PROJECT_VERSION:STATIC=).+(?=)" build/CMakeCache.txt)
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          # Escape '/', '\' and space characters
-          ESCAPED_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[\/\\ ]/\\&/g')
-          if [ "$ESCAPED_BRANCH_NAME" != "master" ]; then
-            BITCOIN_PATCHED_VERSION="${ESCAPED_BRANCH_NAME}-${BITCOIN_PATCHED_VERSION}"
-          fi
+          
           echo "BITCOIN_PATCHED_VERSION=$BITCOIN_PATCHED_VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
@@ -62,7 +57,6 @@ jobs:
             build/src/bitcoind
             build/src/bitcoin-cli
             build/src/qt/bitcoin-qt
-
 
   build-windows: 
     name: Build Windows binaries
@@ -107,12 +101,7 @@ jobs:
       - name: 'Set environment variables: version number'
         run: |
           BITCOIN_PATCHED_VERSION=$(grep -oP "(?<=^CMAKE_PROJECT_VERSION:STATIC=).+(?=)" build/CMakeCache.txt)
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          # Escape '/', '\' and space characters
-          ESCAPED_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[\/\\ ]/\\&/g')
-          if [ "$ESCAPED_BRANCH_NAME" != "master" ]; then
-            BITCOIN_PATCHED_VERSION="${ESCAPED_BRANCH_NAME}-${BITCOIN_PATCHED_VERSION}"
-          fi
+
           echo "BITCOIN_PATCHED_VERSION=$BITCOIN_PATCHED_VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
@@ -162,12 +151,7 @@ jobs:
       - name: 'Set environment variables: version number'
         run: |
           BITCOIN_PATCHED_VERSION=$(ggrep -oP "(?<=^CMAKE_PROJECT_VERSION:STATIC=).+(?=)" build/CMakeCache.txt)
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          # Escape '/', '\' and space characters
-          ESCAPED_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[\/\\ ]/\\&/g')
-          if [ "$ESCAPED_BRANCH_NAME" != "master" ]; then
-            BITCOIN_PATCHED_VERSION="${ESCAPED_BRANCH_NAME}-${BITCOIN_PATCHED_VERSION}"
-          fi
+
           echo "BITCOIN_PATCHED_VERSION=$BITCOIN_PATCHED_VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
@@ -183,22 +167,16 @@ jobs:
     name: Upload artifacts to releases.drivechain.info
     runs-on: ubuntu-latest
     needs: [build-linux, build-macos, build-windows]
-    if: github.repository_owner == 'LayerTwo-Labs'
+    # avoid uploading on PRs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository_owner == 'LayerTwo-Labs'
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
-
+        
       - name: Zip artifacts
         run: |
-          ARTIFACT_PREFIX=''
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          # Escape '/', '\' and space characters
-          ESCAPED_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[\/\\ ]/\\&/g')
-          if [ "$ESCAPED_BRANCH_NAME" != "master" ]; then
-            ARTIFACT_PREFIX="L1-bitcoin-patched-${ESCAPED_BRANCH_NAME}-latest"
-          else
-            ARTIFACT_PREFIX="L1-bitcoin-patched-latest"
-          fi
+          ARTIFACT_PREFIX="L1-bitcoin-patched-latest"
+
           mv bitcoin-patched-*-x86_64-apple-darwin "${ARTIFACT_PREFIX}-x86_64-apple-darwin"
           zip -r "${ARTIFACT_PREFIX}-x86_64-apple-darwin.zip" "${ARTIFACT_PREFIX}-x86_64-apple-darwin"
           mv bitcoin-patched-*-x86_64-w64-mingw32 "${ARTIFACT_PREFIX}-x86_64-w64-mingw32"
@@ -214,4 +192,4 @@ jobs:
           pass: ${{ secrets.RELEASES_SERVER_PW }}
           port: 22
           scp: |
-            'L1-bitcoin-patched-*latest-*.zip' => '/var/www/html/'
+            'L1-bitcoin-patched-*.zip' => '/var/www/html/'
