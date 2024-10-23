@@ -46,12 +46,6 @@ jobs:
       - name: 'Set environment variables: version number'
         run: |
           BITCOIN_PATCHED_VERSION=$(grep -oP "(?<=^CMAKE_PROJECT_VERSION:STATIC=).+(?=)" build/CMakeCache.txt)
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          # Escape '/', '\' and space characters
-          ESCAPED_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[\/\\ ]/\\&/g')
-          if [ "$ESCAPED_BRANCH_NAME" != "master" ]; then
-            BITCOIN_PATCHED_VERSION="${ESCAPED_BRANCH_NAME}-${BITCOIN_PATCHED_VERSION}"
-          fi
           echo "BITCOIN_PATCHED_VERSION=$BITCOIN_PATCHED_VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
@@ -62,7 +56,6 @@ jobs:
             build/src/bitcoind
             build/src/bitcoin-cli
             build/src/qt/bitcoin-qt
-
 
   build-windows: 
     name: Build Windows binaries
@@ -107,12 +100,6 @@ jobs:
       - name: 'Set environment variables: version number'
         run: |
           BITCOIN_PATCHED_VERSION=$(grep -oP "(?<=^CMAKE_PROJECT_VERSION:STATIC=).+(?=)" build/CMakeCache.txt)
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          # Escape '/', '\' and space characters
-          ESCAPED_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[\/\\ ]/\\&/g')
-          if [ "$ESCAPED_BRANCH_NAME" != "master" ]; then
-            BITCOIN_PATCHED_VERSION="${ESCAPED_BRANCH_NAME}-${BITCOIN_PATCHED_VERSION}"
-          fi
           echo "BITCOIN_PATCHED_VERSION=$BITCOIN_PATCHED_VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
@@ -162,12 +149,6 @@ jobs:
       - name: 'Set environment variables: version number'
         run: |
           BITCOIN_PATCHED_VERSION=$(ggrep -oP "(?<=^CMAKE_PROJECT_VERSION:STATIC=).+(?=)" build/CMakeCache.txt)
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          # Escape '/', '\' and space characters
-          ESCAPED_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[\/\\ ]/\\&/g')
-          if [ "$ESCAPED_BRANCH_NAME" != "master" ]; then
-            BITCOIN_PATCHED_VERSION="${ESCAPED_BRANCH_NAME}-${BITCOIN_PATCHED_VERSION}"
-          fi
           echo "BITCOIN_PATCHED_VERSION=$BITCOIN_PATCHED_VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
