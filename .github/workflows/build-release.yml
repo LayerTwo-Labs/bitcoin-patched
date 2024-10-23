@@ -164,22 +164,25 @@ jobs:
     name: Upload artifacts to releases.drivechain.info
     runs-on: ubuntu-latest
     needs: [build-linux, build-macos, build-windows]
-    if: github.repository_owner == 'LayerTwo-Labs'
+    if: >
+      (github.event_name == 'push' &&
+      github.repository_owner == 'LayerTwo-Labs' &&
+      github.ref == 'refs/heads/master') ||
+      github.ref == 'refs/heads/some-whitelisted-branch'
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
-
       - name: Zip artifacts
         run: |
-          ARTIFACT_PREFIX=''
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          # Escape '/', '\' and space characters
-          ESCAPED_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[\/\\ ]/\\&/g')
-          if [ "$ESCAPED_BRANCH_NAME" != "master" ]; then
-            ARTIFACT_PREFIX="L1-bitcoin-patched-${ESCAPED_BRANCH_NAME}-latest"
+          if [ "${{ github.ref }}" == "refs/heads/master" ]; then
+            VERSION="latest"
           else
-            ARTIFACT_PREFIX="L1-bitcoin-patched-latest"
+            # We're on a PR, use the branch name
+            VERSION="${{ github.head_ref }}"
           fi
+
+          ARTIFACT_PREFIX="L1-bitcoin-patched-$VERSION"
+          
           mv bitcoin-patched-*-x86_64-apple-darwin "${ARTIFACT_PREFIX}-x86_64-apple-darwin"
           zip -r "${ARTIFACT_PREFIX}-x86_64-apple-darwin.zip" "${ARTIFACT_PREFIX}-x86_64-apple-darwin"
           mv bitcoin-patched-*-x86_64-w64-mingw32 "${ARTIFACT_PREFIX}-x86_64-w64-mingw32"
@@ -195,4 +198,4 @@ jobs:
           pass: ${{ secrets.RELEASES_SERVER_PW }}
           port: 22
           scp: |
-            'L1-bitcoin-patched-*latest-*.zip' => '/var/www/html/'
+            'L1-bitcoin-patched-*.zip' => '/var/www/html/'
