@@ -65,8 +65,9 @@ jobs:
         # producing Windows binaries
       - name: install deps
         run: |
-          sudo apt install g++-mingw-w64-x86-64 build-essential cmake curl \
-              libboost-dev libtool libevent-dev pkg-config curl git python3 \
+          sudo apt install g++-mingw-w64-x86-64 g++-mingw-w64-x86-64-posix \
+              build-essential clang cmake curl git \
+              libboost-dev libtool libevent-dev patch pkg-config python3 \
               qtbase5-dev qttools5-dev qttools5-dev-tools
 
       - name: configure the Windows toolchain
