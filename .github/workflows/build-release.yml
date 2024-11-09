@@ -121,6 +121,7 @@ jobs:
           cmake --build . -j $env:NUMBER_OF_PROCESSORS --config Release
 
       - name: 'Set environment variables: version number'
+        shell: bash
         run: |
           BITCOIN_PATCHED_VERSION=$(grep -oP "(?<=^CMAKE_PROJECT_VERSION:STATIC=).+(?=)" build/CMakeCache.txt)
           echo "BITCOIN_PATCHED_VERSION=$BITCOIN_PATCHED_VERSION" >> "$GITHUB_ENV"
