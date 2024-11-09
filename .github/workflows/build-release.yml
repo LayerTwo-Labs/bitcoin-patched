@@ -57,45 +57,67 @@ jobs:
             build/src/bitcoin-cli
             build/src/qt/bitcoin-qt
 
-  build-windows: 
-    name: Build Windows binaries
-    runs-on: ubuntu-24.04
-    steps: 
-        # g++-mingw-w64-x86-64 is the cross-compiling toolchain needed for 
-        # producing Windows binaries
-      - name: install deps
+  # cribbed from upstream bitcoin core 
+  # https://github.com/bitcoin/bitcoin/blob/master/.github/workflows/ci.yml
+  build-windows:
+    name: 'Win64 native, VS 2022'
+    # Use latest image, but hardcode version to avoid silent upgrades (and breaks).
+    # See: https://github.com/actions/runner-images#available-images.
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Developer Command Prompt for Microsoft Visual C++
+        # Using microsoft/setup-msbuild is not enough.
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Get tool information
         run: |
-          sudo apt install g++-mingw-w64-x86-64 build-essential cmake curl \
-              libboost-dev libtool libevent-dev pkg-config curl git python3 \
-              qtbase5-dev qttools5-dev qttools5-dev-tools
+          cmake -version | Tee-Object -FilePath "cmake_version"
+          Write-Output "---"
+          msbuild -version | Tee-Object -FilePath "msbuild_version"
+          $env:VCToolsVersion | Tee-Object -FilePath "toolset_version"
+          py -3 --version
+          Write-Host "PowerShell version $($PSVersionTable.PSVersion.ToString())"
 
-      - name: configure the Windows toolchain
-        run: sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+      - name: Using vcpkg with MSBuild
+        run: |
+          Set-Location "$env:VCPKG_INSTALLATION_ROOT"
+          Add-Content -Path "triplets\x64-windows.cmake" -Value "set(VCPKG_BUILD_TYPE release)"
+          Add-Content -Path "triplets\x64-windows-static.cmake" -Value "set(VCPKG_BUILD_TYPE release)"
 
-      - uses: actions/checkout@v4
-    
-      - name: Restore cached dependencies
+      - name: vcpkg tools cache
+        uses: actions/cache@v4
+        with:
+          path: C:/vcpkg/downloads/tools
+          key: ${{ github.job }}-vcpkg-tools
+
+      - name: Restore vcpkg binary cache
         uses: actions/cache/restore@v4
+        id: vcpkg-binary-cache
         with:
-          path: ./depends
-          key: windows-${{ hashFiles('depends/packages/**') }}
-        
-      - name: download dependencies
-        run: make -C ./depends download-win
+          path: ~/AppData/Local/vcpkg/archives
+          key: ${{ github.job }}-vcpkg-binary-${{ hashFiles('cmake_version', 'msbuild_version', 'toolset_version', 'vcpkg.json') }}
 
-      - name: build dependencies
-        run: gmake -C ./depends HOST=x86_64-w64-mingw32 -j 4
-
-      - name: Cache dependencies
-        uses: actions/cache/save@v4
-        with:
-          path: ./depends
-          key: windows-${{ hashFiles('depends/packages/**') }}
-
-      - name: build
+      - name: Generate build system
         run: |
-          cmake -B build --toolchain depends/x86_64-w64-mingw32/toolchain.cmake
-          cmake --build build -j 4
+          cmake -B build --preset vs2022-static -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" -DBUILD_GUI=ON -DWITH_BDB=OFF -DWITH_ZMQ=ON -DBUILD_BENCH=OFF -DBUILD_FUZZ_BINARY=OFF -DBUILD_TESTS=OFF
+
+      - name: Save vcpkg binary cache
+        uses: actions/cache/save@v4
+        if: github.event_name != 'pull_request' && steps.vcpkg-binary-cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: ${{ github.job }}-vcpkg-binary-${{ hashFiles('cmake_version', 'msbuild_version', 'toolset_version', 'vcpkg.json') }}
+
+      - name: Build
+        working-directory: build
+        run: |
+          cmake --build . -j $env:NUMBER_OF_PROCESSORS --config Release
 
       - name: 'Set environment variables: version number'
         run: |
@@ -104,7 +126,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with: 
-          name: bitcoin-patched-${{ env.BITCOIN_PATCHED_VERSION }}-x86_64-w64-mingw32
+          name: bitcoin-patched-${{ env.BITCOIN_PATCHED_VERSION }}-x86_64-w64-msvc
           if-no-files-found: error
           path: |
             build/src/bitcoind.exe
@@ -185,8 +207,8 @@ jobs:
           
           mv bitcoin-patched-*-x86_64-apple-darwin "${ARTIFACT_PREFIX}-x86_64-apple-darwin"
           zip -r "${ARTIFACT_PREFIX}-x86_64-apple-darwin.zip" "${ARTIFACT_PREFIX}-x86_64-apple-darwin"
-          mv bitcoin-patched-*-x86_64-w64-mingw32 "${ARTIFACT_PREFIX}-x86_64-w64-mingw32"
-          zip -r "${ARTIFACT_PREFIX}-x86_64-w64-mingw32.zip" "${ARTIFACT_PREFIX}-x86_64-w64-mingw32"
+          mv bitcoin-patched-*-x86_64-w64-msvc "${ARTIFACT_PREFIX}-x86_64-w64-msvc"
+          zip -r "${ARTIFACT_PREFIX}-x86_64-w64-msvc.zip" "${ARTIFACT_PREFIX}-x86_64-w64-msvc"
           mv bitcoin-patched-*-x86_64-unknown-linux-gnu "${ARTIFACT_PREFIX}-x86_64-unknown-linux-gnu"
           zip -r "${ARTIFACT_PREFIX}-x86_64-unknown-linux-gnu.zip" "${ARTIFACT_PREFIX}-x86_64-unknown-linux-gnu"
 
