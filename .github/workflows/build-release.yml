@@ -64,6 +64,7 @@ jobs:
     # Use latest image, but hardcode version to avoid silent upgrades (and breaks).
     # See: https://github.com/actions/runner-images#available-images.
     runs-on: windows-2022
+    timeout-minutes: 360 # windows takes a looooong as time to build
 
     steps:
       - name: Checkout
