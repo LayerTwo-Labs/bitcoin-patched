@@ -133,9 +133,9 @@ jobs:
           name: bitcoin-patched-${{ env.BITCOIN_PATCHED_VERSION }}-x86_64-w64-msvc
           if-no-files-found: error
           path: |
-            build/src/bitcoind.exe
-            build/src/bitcoin-cli.exe
-            build/src/qt/bitcoin-qt.exe
+            build/src/Release/bitcoind.exe
+            build/src/Release/bitcoin-cli.exe
+            build/src/qt/Release/bitcoin-qt.exe
 
   build-macos: 
     name: Build macOS binaries
