@@ -125,7 +125,7 @@ jobs:
         # This command is a bit different than macOS and Linux, because the Windows version of 
         # `grep` doesn't have the `-P` option.
         run: |
-          BITCOIN_PATCHED_VERSION=$(grep CMAKE_PROJECT_VERSION:STATIC build/CMakeCache.txt | cut -d = -f=1)
+          BITCOIN_PATCHED_VERSION=$(grep CMAKE_PROJECT_VERSION:STATIC build/CMakeCache.txt | cut -d = -f2)
           echo "BITCOIN_PATCHED_VERSION=$BITCOIN_PATCHED_VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
