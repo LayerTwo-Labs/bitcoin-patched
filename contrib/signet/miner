@@ -13,6 +13,7 @@ import struct
 import sys
 import time
 import subprocess
+from io import BytesIO
 
 PATH_BASE_CONTRIB_SIGNET = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 PATH_BASE_TEST_FUNCTIONAL = os.path.abspath(os.path.join(PATH_BASE_CONTRIB_SIGNET, "..", "..", "test", "functional"))
@@ -93,7 +94,7 @@ def finish_block(block, signet_solution, grind_cmd):
         block.rehash()
     return block
 
-def generate_psbt(tmpl, reward_spk, *, blocktime=None, poolid=None):
+def generate_psbt(tmpl, reward_spk, *, blocktime=None, poolid=None, extra_vouts=[]):
     signet_spk = tmpl["signet_challenge"]
     signet_spk_bin = bytes.fromhex(signet_spk)
 
@@ -104,6 +105,9 @@ def generate_psbt(tmpl, reward_spk, *, blocktime=None, poolid=None):
     cbtx = CTransaction()
     cbtx.vin = [CTxIn(COutPoint(0, 0xffffffff), scriptSig, 0xffffffff)]
     cbtx.vout = [CTxOut(tmpl["coinbasevalue"], reward_spk)]
+    if extra_vouts is not None:
+        cbtx.vout.extend(extra_vouts)
+
     cbtx.vin[0].nSequence = 2**32-2
     cbtx.rehash()
 
@@ -135,6 +139,28 @@ def generate_psbt(tmpl, reward_spk, *, blocktime=None, poolid=None):
              ]
     psbt.o = [ PSBTMap() ]
     return psbt.to_base64()
+
+def get_extra_vouts(args): 
+    vouts = []
+
+    if args.extra_vout is None:
+        return vouts
+
+    for message in args.extra_vout:
+        if message is None:
+            continue
+
+        try: 
+            decoded_message = bytes.fromhex(message)
+        except ValueError:
+            raise Exception("message must be hex-encoded bytes")
+
+        tx_out = CTxOut()
+        tx_out.deserialize(BytesIO(decoded_message))
+
+        vouts.append(tx_out)
+
+    return vouts
 
 def get_poolid(args):
     if args.poolid is not None:
@@ -172,10 +198,11 @@ def get_reward_addr_spk(args, height):
     return reward_addr, reward_spk
 
 def do_genpsbt(args):
+    extra_vouts = get_extra_vouts(args)
     poolid = get_poolid(args)
     tmpl = json.load(sys.stdin)
     _, reward_spk = get_reward_addr_spk(args, tmpl["height"])
-    psbt = generate_psbt(tmpl, reward_spk, poolid=poolid)
+    psbt = generate_psbt(tmpl, reward_spk, poolid=poolid, extra_vouts=extra_vouts)
     print(psbt)
 
 def do_solvepsbt(args):
@@ -229,7 +256,7 @@ class Generate:
                  standby_delay=0, backup_delay=0, set_block_time=None, 
                  # 10 minutes, adjusted for the off-by-one bug
                  block_interval=600.0*2016/2015, 
-                 poolid=None):
+                 poolid=None, extra_vouts=[]):
         if multiminer is None:
             multiminer = (0, 1, 1)
         (self.multi_low, self.multi_high, self.multi_period) = multiminer
@@ -241,6 +268,8 @@ class Generate:
         self.set_block_time = set_block_time
         self.poolid = poolid
         self.block_interval = block_interval
+        self.extra_vouts = extra_vouts
+
 
     def next_block_delta(self, last_nbits, last_hash):
         # strategy:
@@ -324,7 +353,10 @@ class Generate:
         return tmpl
 
     def mine(self, bcli, grind_cmd, tmpl, reward_spk):
-        psbt = generate_psbt(tmpl, reward_spk, blocktime=self.mine_time, poolid=self.poolid)
+        psbt = generate_psbt(
+            tmpl, reward_spk, blocktime=self.mine_time, 
+            poolid=self.poolid, extra_vouts=self.extra_vouts,
+        )
         input_stream = os.linesep.join([psbt, "true", "ALL"]).encode('utf8')
         psbt_signed = json.loads(bcli("-stdin", "walletprocesspsbt", input=input_stream))
         if not psbt_signed.get("complete",False):
@@ -392,7 +424,8 @@ def do_generate(args):
 
     gen = Generate(multiminer=my_blocks, ultimate_target=ultimate_target, poisson=args.poisson, max_interval=args.max_interval,
                    standby_delay=args.standby_delay, backup_delay=args.backup_delay, set_block_time=args.set_block_time, poolid=poolid,
-                   block_interval=args.block_interval)
+                   block_interval=args.block_interval, 
+                   extra_vouts=get_extra_vouts(args))
 
     mined_blocks = 0
     bestheader = {"hash": None}
@@ -550,6 +583,7 @@ def main():
         pool = sp.add_mutually_exclusive_group()
         pool.add_argument("--poolnum", default=None, type=int, help="Identify blocks that you mine")
         pool.add_argument("--poolid", default=None, type=str, help="Identify blocks that you mine (eg: /signet:1/)")
+        pool.add_argument("--extra-vout", default=None, action="append", type=str, help="Extra raw vout to add to the coinbase")
 
     for sp in [solvepsbt, generate, calibrate]:
         sp.add_argument("--grind-cmd", default=None, type=str, required=(sp==calibrate), help="Command to grind a block header for proof-of-work")
