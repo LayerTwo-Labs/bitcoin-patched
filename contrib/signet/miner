@@ -12,6 +12,7 @@ import re
 import struct
 import sys
 import time
+import shlex
 import subprocess
 from io import BytesIO
 
@@ -103,15 +104,14 @@ def generate_psbt(tmpl, reward_spk, *, blocktime=None, poolid=None, extra_vouts=
         scriptSig = CScript(b"" + scriptSig + CScriptOp.encode_op_pushdata(poolid))
 
     cbtx = CTransaction()
-    cbtx.vin = [CTxIn(COutPoint(0, 0xffffffff), scriptSig, 0xffffffff)]
-    cbtx.vout = [CTxOut(tmpl["coinbasevalue"], reward_spk)]
-    # TODO: find extra outputs from the block template, under the "coinbasetxn" field. 
-    # Not sure precisely how that looks. Should be integrated into the BIP300/301 enforcer
-    # first?
+    if "coinbasetxn" in tmpl:
+        cbtx = tx_from_hex(tmpl["coinbasetxn"]["data"])
+    else:
+        cbtx.vin = [CTxIn(COutPoint(0, 0xffffffff), scriptSig, 0xffffffff)]
+        cbtx.vout = [CTxOut(tmpl["coinbasevalue"], reward_spk)]
+        cbtx.vin[0].nSequence = 2**32-2
     if extra_vouts is not None:
         cbtx.vout.extend(extra_vouts)
-
-    cbtx.vin[0].nSequence = 2**32-2
     cbtx.rehash()
 
     block = CBlock()
@@ -259,7 +259,8 @@ class Generate:
                  standby_delay=0, backup_delay=0, set_block_time=None, 
                  # 10 minutes, adjusted for the off-by-one bug
                  block_interval=600.0*2016/2015, 
-                 poolid=None, extra_vouts=[]):
+                 poolid=None, extra_vouts=[],
+                 enable_coinbasetxn = False):
         if multiminer is None:
             multiminer = (0, 1, 1)
         (self.multi_low, self.multi_high, self.multi_period) = multiminer
@@ -272,6 +273,7 @@ class Generate:
         self.poolid = poolid
         self.block_interval = block_interval
         self.extra_vouts = extra_vouts
+        self.enable_coinbasetxn = enable_coinbasetxn
 
 
     def next_block_delta(self, last_nbits, last_hash):
@@ -339,10 +341,11 @@ class Generate:
         # can't mine a block 2h in the future; 1h55m for some safety
         self.action_time = max(self.action_time, self.mine_time - 6900)
 
-    def gbt(self, bcli, bestblockhash, now):
-        # Adding "coinbasetxn" to the capabilities field to indicate that we want 
-        # Drivechain coinbase messages to be included in the block template.
-        tmpl = json.loads(bcli("getblocktemplate", '{"capabilities":["coinbasetxn"],"rules":["signet","segwit"]}'))
+    def gbt(self, getblocktemplate_command, bestblockhash, now):
+        gbt_request = json.loads('{"rules":["signet","segwit"]}')
+        if self.enable_coinbasetxn:
+            gbt_request["capabilities"] = ["coinbasetxn"]
+        tmpl = json.loads(getblocktemplate_command(json.dumps(gbt_request)))
         if tmpl["previousblockhash"] != bestblockhash:
             logging.warning("GBT based off unexpected block (%s not %s), retrying", tmpl["previousblockhash"], bci["bestblockhash"])
             time.sleep(1)
@@ -370,6 +373,14 @@ class Generate:
             return None
         block, signet_solution = decode_psbt(psbt_signed["psbt"])
         return finish_block(block, signet_solution, grind_cmd)
+
+def gbt_command(basecmd, request, **kwargs):
+    cmd = basecmd + [request]
+    logging.debug("Requesting block template: %r", cmd)
+    out = subprocess.run(cmd, stdout=subprocess.PIPE, **kwargs, check=True).stdout
+    if isinstance(out, bytes):
+        out = out.decode('utf8')
+    return out.strip()
 
 def do_generate(args):
     if args.set_block_time is not None:
@@ -429,8 +440,7 @@ def do_generate(args):
 
     gen = Generate(multiminer=my_blocks, ultimate_target=ultimate_target, poisson=args.poisson, max_interval=args.max_interval,
                    standby_delay=args.standby_delay, backup_delay=args.backup_delay, set_block_time=args.set_block_time, poolid=poolid,
-                   block_interval=args.block_interval, 
-                   extra_vouts=get_extra_vouts(args))
+                   block_interval=args.block_interval, extra_vouts=get_extra_vouts(args), enable_coinbasetxn=args.coinbasetxn)
 
     mined_blocks = 0
     bestheader = {"hash": None}
@@ -470,7 +480,10 @@ def do_generate(args):
             continue
 
         # gbt
-        tmpl = gen.gbt(args.bcli, bci["bestblockhash"], now)
+        getblocktemplate_command = lambda gbt_request: args.bcli("getblocktemplate", gbt_request)
+        if args.getblocktemplate_command is not None:
+            getblocktemplate_command = lambda gbt_request: gbt_command(shlex.split(args.getblocktemplate_command), gbt_request)
+        tmpl = gen.gbt(getblocktemplate_command, bci["bestblockhash"], now)
         if tmpl is None:
             continue
 
@@ -575,6 +588,8 @@ def main():
     generate.add_argument("--standby-delay", default=0, type=int, help="Seconds to delay before mining blocks (default=0)")
     generate.add_argument("--max-interval", default=1800, type=int, help="Maximum interblock interval (seconds)")
     generate.add_argument("--block-interval", default=60*10, type=int, help="Consensus blocktime interval (seconds)")
+    generate.add_argument("--getblocktemplate-command", default=None, type=str, help="Command to get block template")
+    generate.add_argument("--coinbasetxn", action="store_true", help="Enable coinbasetxn capability for getblocktemplate")
 
     calibrate = cmds.add_parser("calibrate", help="Calibrate difficulty")
     calibrate.set_defaults(fn=do_calibrate)
