@@ -173,7 +173,12 @@ def get_poolid(args):
     else:
         return None
 
-def get_reward_addr_spk(args, height):
+def get_reward_addr_spk(args, tmpl):
+    # If we have a coinbase transaction, there's no need to mess around 
+    # with addresses or descriptors.
+    if "coinbasetxn" in tmpl:
+        return None, None
+
     assert args.address is not None or args.descriptor is not None
 
     if hasattr(args, "reward_spk"):
@@ -204,7 +209,7 @@ def do_genpsbt(args):
     extra_vouts = get_extra_vouts(args)
     poolid = get_poolid(args)
     tmpl = json.load(sys.stdin)
-    _, reward_spk = get_reward_addr_spk(args, tmpl["height"])
+    _, reward_spk = get_reward_addr_spk(args, tmpl)
     psbt = generate_psbt(tmpl, reward_spk, poolid=poolid, extra_vouts=extra_vouts)
     print(psbt)
 
@@ -490,7 +495,7 @@ def do_generate(args):
         logging.debug("GBT template: %s", tmpl)
 
         # address for reward
-        reward_addr, reward_spk = get_reward_addr_spk(args, tmpl["height"])
+        reward_addr, reward_spk = get_reward_addr_spk(args, tmpl)
 
         # mine block
         logging.debug("Mining block delta=%s start=%s mine=%s", seconds_to_hms(gen.mine_time-bestheader["time"]), gen.mine_time, gen.is_mine)
@@ -509,8 +514,12 @@ def do_generate(args):
         next_delta += block.nTime - time.time()
         next_is_mine = gen.next_block_is_mine(block.hash)
 
-        logging.debug("Block hash %s payout to %s", block.hash, reward_addr)
-        logging.info("Mined %s at height %d; next in %s (%s)", bstr, tmpl["height"], seconds_to_hms(next_delta), ("mine" if next_is_mine else "backup"))
+        # We used to log the payout address here. Due to moving to getting the coinbase
+        # transaction via `getblocktemplate`, we would now need to inspect the block
+        # to find the actual payout address. Don't bother!
+        logging.info("Mined %s at height %d (%s); next in %s (%s)", 
+                     bstr, block.hash, tmpl["height"], 
+                     seconds_to_hms(next_delta), ("mine" if next_is_mine else "backup"))
         if r != "":
             logging.warning("submitblock returned %s for height %d hash %s", r, tmpl["height"], block.hash)
         lastheader = block.hash
@@ -598,7 +607,7 @@ def main():
     calibrate_by.add_argument("--seconds", type=int, default=None)
 
     for sp in [genpsbt, generate]:
-        payto = sp.add_mutually_exclusive_group(required=True)
+        payto = sp.add_mutually_exclusive_group()
         payto.add_argument("--address", default=None, type=str, help="Address for block reward payment")
         payto.add_argument("--descriptor", default=None, type=str, help="Descriptor for block reward payment")
         pool = sp.add_mutually_exclusive_group()
