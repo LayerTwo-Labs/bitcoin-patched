@@ -517,8 +517,8 @@ def do_generate(args):
         # We used to log the payout address here. Due to moving to getting the coinbase
         # transaction via `getblocktemplate`, we would now need to inspect the block
         # to find the actual payout address. Don't bother!
-        logging.info("Mined %s at height %d (%s); next in %s (%s)", 
-                     bstr, block.hash, tmpl["height"], 
+        logging.info("Mined %s at height %d (%s); next in %s (%s)",
+                     bstr, tmpl["height"], block.hash,
                      seconds_to_hms(next_delta), ("mine" if next_is_mine else "backup"))
         if r != "":
             logging.warning("submitblock returned %s for height %d hash %s", r, tmpl["height"], block.hash)

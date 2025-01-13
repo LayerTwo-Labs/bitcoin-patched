@@ -22,6 +22,8 @@ easy enough to get the gist if using an inferior shell like Bash or Zsh.
     $ ./build/src/bitcoin-cli -regtest -datadir=$PWD/l2l-signet \
          createwallet l2l-signet
 
+    $ set address (./build/src/bitcoin-cli -regtest -datadir=$PWD/l2l-signet getnewaddress)
+
     $ set signet_challenge (./build/src/bitcoin-cli -regtest -datadir=$PWD/l2l-signet \
                          getaddressinfo $address | jq -r .scriptPubKey)
 
@@ -43,7 +45,7 @@ easy enough to get the gist if using an inferior shell like Bash or Zsh.
     $ ./build/src/bitcoin-cli -signet -datadir=$PWD/l2l-signet \
          createwallet l2l-signet
 
-    $ ./build/src/bitcoin-cli signet -datadir=$PWD/l2l-signet \
+    $ ./build/src/bitcoin-cli -signet -datadir=$PWD/l2l-signet \
         importdescriptors "$descriptors"
 
     ```
