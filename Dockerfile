@@ -14,7 +14,12 @@ COPY . .
 RUN rm -rf build/
 
 # Run CMake to configure the build
-RUN cmake -S . -B build -DBUILD_TESTS=OFF -DBUILD_UTIL:BOOL=OFF -DBUILD_TX:BOOL=OFF -DBUILD_WALLET_TOOL=OFF
+RUN cmake -S . -B build \
+        -DDWITH_ZMQ=ON \
+        -DBUILD_TESTS=OFF \
+        -DBUILD_UTIL:BOOL=OFF \
+        -DBUILD_TX:BOOL=OFF \
+        -DBUILD_WALLET_TOOL=OFF
 
 # Build the project
 RUN cmake --build build -j
