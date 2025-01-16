@@ -15,7 +15,7 @@ RUN rm -rf build/
 
 # Run CMake to configure the build
 RUN cmake -S . -B build \
-        -DDWITH_ZMQ=ON \
+        -DWITH_ZMQ=ON \
         -DBUILD_TESTS=OFF \
         -DBUILD_UTIL:BOOL=OFF \
         -DBUILD_TX:BOOL=OFF \
