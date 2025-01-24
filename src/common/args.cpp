@@ -737,12 +737,12 @@ bool HasTestOption(const ArgsManager& args, const std::string& test_option)
 
 fs::path GetDefaultDataDir()
 {
-    // Windows: C:\Users\Username\AppData\Local\drivechain
-    // macOS: ~/Library/Application Support/drivechain
+    // Windows: C:\Users\Username\AppData\Local\Drivechain
+    // macOS: ~/Library/Application Support/Drivechain
     // Unix-like: ~/.drivechain
 #ifdef WIN32
     // Windows
-    return GetSpecialFolderPath(CSIDL_LOCAL_APPDATA) / "drivechain";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "Drivechain";
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -752,7 +752,7 @@ fs::path GetDefaultDataDir()
         pathRet = fs::path(pszHome);
 #ifdef __APPLE__
     // macOS
-    return pathRet / "Library/Application Support/drivechain";
+    return pathRet / "Library/Application Support/Drivechain";
 #else
     // Unix-like
     return pathRet / ".drivechain";
