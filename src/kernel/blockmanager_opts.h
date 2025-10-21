@@ -26,6 +26,7 @@ struct BlockManagerOpts {
     bool use_xor{DEFAULT_XOR_BLOCKSDIR};
     uint64_t prune_target{0};
     bool fast_prune{false};
+    bool drivechain{false};
     const fs::path blocks_dir;
     Notifications& notifications;
     DBParams block_tree_db_params;

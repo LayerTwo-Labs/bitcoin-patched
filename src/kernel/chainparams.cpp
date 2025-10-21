@@ -84,7 +84,7 @@ class CMainParams : public CChainParams {
 public:
     CMainParams() {
         m_chain_type = ChainType::MAIN;
-        consensus.DrivechainHeight = 917280;
+        consensus.DrivechainHeight = 919296;
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
         consensus.nSubsidyHalvingInterval = 210000;
@@ -117,8 +117,9 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = 1619222400; // April 24th, 2021
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = 1628640000; // August 11th, 2021
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 709632; // Approximately November 12th, 2021
-
-        consensus.nMinimumChainWork = uint256{"0000000000000000000000000000000000000000b1f3b93b65b16d035a82be84"};
+        
+        // replace to drivechain minimum chain work
+        consensus.nMinimumChainWork = uint256{"0000000000000000000000000000000000000000000000000000000000000000"};
         consensus.defaultAssumeValid = uint256{"00000000000000000001b658dd1120e82e66d2790811f89ede9742ada3ed6d77"}; // 886157
 
         /**
@@ -126,11 +127,12 @@ public:
          * The characters are rarely used upper ASCII, not valid as UTF-8, and produce
          * a large 32-bit integer with any alignment.
          */
-        pchMessageStart[0] = 0xf9;
-        pchMessageStart[1] = 0xbe;
-        pchMessageStart[2] = 0xb4;
-        pchMessageStart[3] = 0xd9;
-        nDefaultPort = 8333;
+        // drivechain mainnet message start b300
+        pchMessageStart[0] = 0x62;  
+        pchMessageStart[1] = 0x33;  
+        pchMessageStart[2] = 0x30;  
+        pchMessageStart[3] = 0x30;  
+        nDefaultPort = 8300;
         nPruneAfterHeight = 100000;
         m_assumed_blockchain_size = 720;
         m_assumed_chain_state_size = 14;
@@ -140,20 +142,15 @@ public:
         assert(consensus.hashGenesisBlock == uint256{"000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"});
         assert(genesis.hashMerkleRoot == uint256{"4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"});
 
+        vFixedSeeds.clear();
+        vSeeds.clear();
+
         // Note that of those which support the service bits prefix, most only support a subset of
         // possible options.
         // This is fine at runtime as we'll fall back to using them as an addrfetch if they don't support the
         // service bits we want, but we should get them updated to support all service bits wanted by any
         // release ASAP to avoid it where possible.
-        vSeeds.emplace_back("seed.bitcoin.sipa.be."); // Pieter Wuille, only supports x1, x5, x9, and xd
-        vSeeds.emplace_back("dnsseed.bluematt.me."); // Matt Corallo, only supports x9
-        vSeeds.emplace_back("dnsseed.bitcoin.dashjr-list-of-p2p-nodes.us."); // Luke Dashjr
-        vSeeds.emplace_back("seed.bitcoin.jonasschnelli.ch."); // Jonas Schnelli, only supports x1, x5, x9, and xd
-        vSeeds.emplace_back("seed.btc.petertodd.net."); // Peter Todd, only supports x1, x5, x9, and xd
-        vSeeds.emplace_back("seed.bitcoin.sprovoost.nl."); // Sjors Provoost
-        vSeeds.emplace_back("dnsseed.emzy.de."); // Stephan Oeste
-        vSeeds.emplace_back("seed.bitcoin.wiz.biz."); // Jason Maurice
-        vSeeds.emplace_back("seed.mainnet.achownodes.xyz."); // Ava Chow, only supports x1, x5, x9, x49, x809, x849, xd, x400, x404, x408, x448, xc08, xc48, x40c
+        vSeeds.emplace_back("seed.bip300.xyz."); 
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,0);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,5);
@@ -163,7 +160,8 @@ public:
 
         bech32_hrp = "bc";
 
-        vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_main), std::end(chainparams_seed_main));
+        // disable to support only drivechain mainnet seeds
+        // vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_main), std::end(chainparams_seed_main));
 
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
@@ -283,7 +281,7 @@ public:
 
         bech32_hrp = "tb";
 
-        vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_test), std::end(chainparams_seed_test));
+        // vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_test), std::end(chainparams_seed_test));
 
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
@@ -388,7 +386,7 @@ public:
 
         bech32_hrp = "tb";
 
-        vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_testnet4), std::end(chainparams_seed_testnet4));
+        // vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_testnet4), std::end(chainparams_seed_testnet4));
 
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
@@ -425,7 +423,7 @@ public:
 
         if (!options.challenge) {
             bin = "512103ad5e0edad18cb1f0fc0d28a3d4f1f3e445640337489abb10404f2d1e086be430210359ef5021964fe22d6f8e05b2463c9540ce96883fe3b278760f048f5189f2e6c452ae"_hex_v_u8;
-            vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_signet), std::end(chainparams_seed_signet));
+            // vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_signet), std::end(chainparams_seed_signet));
             vSeeds.emplace_back("seed.signet.bitcoin.sprovoost.nl.");
             vSeeds.emplace_back("seed.signet.achownodes.xyz."); // Ava Chow, only supports x1, x5, x9, x49, x809, x849, xd, x400, x404, x408, x448, xc08, xc48, x40c
 
