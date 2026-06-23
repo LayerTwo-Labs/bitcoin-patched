@@ -107,7 +107,7 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           # GNU grep is required, as BSD grep does not support perl regexes
-          brew install boost grep qrencode qt@5
+          brew install boost grep qrencode qt@6
 
       # Windows: Configure MSVC
       - name: Configure Developer Command Prompt for Microsoft Visual C++
