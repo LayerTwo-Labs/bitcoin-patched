@@ -67,7 +67,7 @@ jobs:
             exe-ext: ".exe"
             build-subdir: "Release/"
           - platform: macos
-            os: macos-15-intel
+            os: macos-14
             timeout: 120
             artifact-suffix: x86_64-apple-darwin
             exe-ext: ""
