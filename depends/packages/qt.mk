@@ -295,7 +295,7 @@ define $(package)_config_cmds
 endef
 
 define $(package)_build_cmds
-  cmake --build . -- $$(if $$(filter -j%,$$(MAKEFLAGS)),$$(filter -j%,$$(MAKEFLAGS)),-j1)
+  cmake --build . --
 endef
 
 define $(package)_stage_cmds
