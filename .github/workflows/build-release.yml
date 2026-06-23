@@ -194,7 +194,7 @@ jobs:
       - name: Configure build (Windows)
         if: matrix.platform == 'windows'
         run: |
-          cmake -B build --preset vs2025-static `
+          cmake -B build --preset vs2026-static `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
                -DBUILD_GUI=ON -DBUILD_BENCH=OFF -DBUILD_FUZZ_BINARY=OFF -DBUILD_GUI_TESTS=OFF -DBUILD_TESTS=OFF -DENABLE_IPC=OFF -DWITH_ZMQ=ON -DBUILD_UTIL=ON -DWITH_BDB=OFF `
             -DBUILD_BENCH=OFF -DBUILD_FUZZ_BINARY=OFF -DBUILD_TESTS=OFF -DBUILD_UTIL=ON
