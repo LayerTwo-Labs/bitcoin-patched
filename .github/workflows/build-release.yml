@@ -278,9 +278,9 @@ jobs:
 
           for suffix in x86_64-apple-darwin x86_64-w64-msvc x86_64-unknown-linux-gnu; do
             # Find the artifact directory (may have version and branch suffix)
-            src_dir=$(ls -d drivechain-forknet-*-${suffix} 2>/dev/null | head -1)
+            src_dir=$(ls -d drivechain-forknet-${suffix} 2>/dev/null | head -1)
             if [ -z "$src_dir" ]; then
-              echo "::warning::No artifact found matching drivechain-forknet-*-${suffix}, skipping..."
+              echo "::warning::No artifact found matching drivechain-forknet-${suffix}, skipping..."
               continue
             fi
             dest_dir="${ARTIFACT_PREFIX}-${suffix}"
