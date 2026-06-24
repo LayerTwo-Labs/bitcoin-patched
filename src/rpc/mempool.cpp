@@ -952,7 +952,7 @@ static RPCHelpMan gettxspendingprevout()
 
             struct Entry {
                 const COutPoint prevout;
-                const UniValue& input;
+                UniValue input;
                 UniValue output;
             };
             std::vector<Entry> prevouts;
