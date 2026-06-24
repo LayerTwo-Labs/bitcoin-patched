@@ -262,7 +262,7 @@ jobs:
       - name: Determine version label
         id: version
         run: |
-          if [ "${{ github.ref }}" == "refs/heads/master" ]; then
+          if [ "${{ github.ref }}" == "refs/heads/forknet-31" ]; then
             echo "label=latest" >> "$GITHUB_OUTPUT"
           else
             # Sanitize branch name for filename
