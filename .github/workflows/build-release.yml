@@ -256,7 +256,6 @@ jobs:
 
       - name: Zip artifacts
         run: |
-          ls -la
           set -euo pipefail
           ARTIFACT_PREFIX="L1-drivechain-forknet-${{ steps.version.outputs.label }}"
           SUCCESS_COUNT=0
