@@ -76,22 +76,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Set branch suffix for artifact names (empty on forknet-31, branch name otherwise)
-      - name: Set artifact branch suffix
-        shell: bash
-        run: |
-          if [ "${{ github.ref }}" == "refs/heads/forknet-31" ]; then
-            echo "BRANCH_SUFFIX=" >> "$GITHUB_ENV"
-          elif [ "${{ github.event_name }}" == "pull_request" ]; then
-            # Sanitize branch name (replace / with -)
-            BRANCH=$(echo "${{ github.head_ref }}" | sed 's/\//-/g')
-            echo "BRANCH_SUFFIX=-${BRANCH}" >> "$GITHUB_ENV"
-          else
-            # Push to non-master branch
-            BRANCH=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
-            echo "BRANCH_SUFFIX=-${BRANCH}" >> "$GITHUB_ENV"
-          fi
-
       #
       # Platform-specific setup
       #
@@ -240,7 +224,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: drivechain-forknet-${{ env.BRANCH_SUFFIX }}-${{ matrix.artifact-suffix }}
+          name: drivechain-forknet-${{ matrix.artifact-suffix }}
           if-no-files-found: error
           path: |
             artifacts/bitcoind${{ matrix.exe-ext }}
