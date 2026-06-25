@@ -240,7 +240,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: drivechain-forknet-{{ env.BRANCH_SUFFIX }}-${{ matrix.artifact-suffix }}
+          name: drivechain-forknet-${{ env.BRANCH_SUFFIX }}-${{ matrix.artifact-suffix }}
           if-no-files-found: error
           path: |
             artifacts/bitcoind${{ matrix.exe-ext }}
