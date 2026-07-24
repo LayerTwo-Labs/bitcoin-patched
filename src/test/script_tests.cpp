@@ -1706,4 +1706,65 @@ BOOST_AUTO_TEST_CASE(compute_tapleaf)
     BOOST_CHECK_EQUAL(ComputeTapleafHash(0xc2, std::span(script)), tlc2);
 }
 
+
+BOOST_AUTO_TEST_CASE(script_op_drivechain_nop_fallback)
+{
+    // When OP_NOP5 (0xb4) was repurposed as OP_DRIVECHAIN, historical
+    // transactions that used OP_NOP5 as a no-op would fail consensus checks.
+    // The fix makes OP_DRIVECHAIN fall back to NOP behavior when the script
+    // does not match the 4-byte drivechain format.
+
+    ScriptError err;
+
+    // A 4-byte script that does NOT start with OP_DRIVECHAIN (0xb4) should
+    // treat 0xb4 as a no-op (here OP_1 / 0x51 is the first byte).
+    {
+        const unsigned char script[] = {OP_1, OP_DRIVECHAIN, OP_1, OP_EQUAL};
+        std::vector<std::vector<unsigned char>> stack;
+        BOOST_CHECK(EvalScript(stack, CScript(script, script + sizeof(script)), 0, BaseSignatureChecker(), SigVersion::BASE, &err));
+        BOOST_CHECK_MESSAGE(err == SCRIPT_ERR_OK, ScriptErrorString(err));
+        BOOST_CHECK_EQUAL(stack.size(), 1U);
+    }
+
+    // A script starting with 0xb4 but not exactly 4 bytes should also
+    // fall back to NOP behavior for the 0xb4 opcode.
+    {
+        const unsigned char script[] = {OP_DRIVECHAIN, OP_1};
+        std::vector<std::vector<unsigned char>> stack;
+        BOOST_CHECK(EvalScript(stack, CScript(script, script + sizeof(script)), 0, BaseSignatureChecker(), SigVersion::BASE, &err));
+        BOOST_CHECK_MESSAGE(err == SCRIPT_ERR_OK, ScriptErrorString(err));
+        BOOST_CHECK_EQUAL(stack.size(), 1U);
+    }
+
+    // A 1-byte script containing only 0xb4 should be a no-op.
+    {
+        const unsigned char script[] = {OP_DRIVECHAIN};
+        std::vector<std::vector<unsigned char>> stack;
+        BOOST_CHECK(EvalScript(stack, CScript(script, script + sizeof(script)), 0, BaseSignatureChecker(), SigVersion::BASE, &err));
+        BOOST_CHECK_MESSAGE(err == SCRIPT_ERR_OK, ScriptErrorString(err));
+        BOOST_CHECK_EQUAL(stack.size(), 0U);
+    }
+
+    // With SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS, a non-drivechain use of
+    // 0xb4 should fail with SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS.
+    {
+        const unsigned char script[] = {OP_1, OP_DRIVECHAIN, OP_1, OP_EQUAL};
+        std::vector<std::vector<unsigned char>> stack;
+        BOOST_CHECK(!EvalScript(stack, CScript(script, script + sizeof(script)), SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS, BaseSignatureChecker(), SigVersion::BASE, &err));
+        BOOST_CHECK_EQUAL(err, SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS);
+    }
+
+    // A valid 4-byte drivechain script starting with OP_DRIVECHAIN should
+    // execute the drivechain logic, pushing 0xDC onto the stack.
+    {
+        const unsigned char script[] = {OP_DRIVECHAIN, 0x01, 0x02, 0x03};
+        std::vector<std::vector<unsigned char>> stack;
+        BOOST_CHECK(EvalScript(stack, CScript(script, script + sizeof(script)), 0, BaseSignatureChecker(), SigVersion::BASE, &err));
+        BOOST_CHECK_MESSAGE(err == SCRIPT_ERR_OK, ScriptErrorString(err));
+        BOOST_CHECK_EQUAL(stack.size(), 1U);
+        BOOST_CHECK_EQUAL(stack[0].size(), 1U);
+        BOOST_CHECK_EQUAL(stack[0][0], 0xDC);
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()
